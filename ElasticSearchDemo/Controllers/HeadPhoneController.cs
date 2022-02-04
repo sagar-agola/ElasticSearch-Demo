@@ -1,6 +1,6 @@
 ﻿using ElasticSearchDemo.Models;
 using Microsoft.AspNetCore.Mvc;
-using Nest;
+using Nest; 
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -62,7 +62,9 @@ public class HeadPhoneController : ControllerBase
             //    });
             //}
 
-            ISearchResponse<HeadPhoneItem> response = await _elasticClient.SearchAsync<HeadPhoneItem>(x => x.Index(_indexName));
+
+            //ISearchResponse<HeadPhoneItem> response = await _elasticClient.SearchAsync<HeadPhoneItem>(x => x.Index(_indexName));
+            ISearchResponse<HeadPhoneItem> response = await _elasticClient.SearchAsync<HeadPhoneItem>(x => x.Index(_indexName).From(0).Size(100).Query(q => q.Match(m => m.Field(f => f.Title).Query("Aroma"))));
 
             if (response.IsValid)
             {
