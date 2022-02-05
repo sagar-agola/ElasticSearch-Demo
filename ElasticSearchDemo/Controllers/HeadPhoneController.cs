@@ -1,6 +1,6 @@
 ﻿using ElasticSearchDemo.Models;
 using Microsoft.AspNetCore.Mvc;
-using Nest; 
+using Nest;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +14,7 @@ namespace ElasticSearchDemo.Controllers;
 public class HeadPhoneController : ControllerBase
 {
     private const string _indexName = "headphones";
+    private const string _analyzerName = "custom-analyzer";
     private readonly IElasticClient _elasticClient;
 
     public HeadPhoneController(IElasticClient elasticClient)
@@ -30,7 +31,35 @@ public class HeadPhoneController : ControllerBase
 
             if (existsResponse.Exists == false)
             {
-                CreateIndexResponse response = await _elasticClient.Indices.CreateAsync(_indexName, u => u.Map<HeadPhoneItem>(mp => mp.AutoMap()));
+                CreateIndexResponse response = await _elasticClient.Indices.CreateAsync(_indexName, i => i
+                    .Settings(s => s
+                        .Analysis(a => a
+                            .Analyzers(an => an
+                                .Custom(_analyzerName, x => x
+                                    .Tokenizer("keyword")
+                                    .Filters("lowercase"))
+                            )
+                        )
+                    )
+                    .Map<HeadPhoneItem>(mp => mp
+                        .Properties(ps => ps
+                            .IntegerRange(n => n.Name(h => h.Id))
+                            .Text(t => t
+                                .Name(n => n.Title)
+                                .Analyzer(_analyzerName)
+                            )
+                            .Text(t => t
+                                .Name(n => n.Color)
+                                .Analyzer(_analyzerName)
+                            )
+                            .Text(t => t
+                                .Name(n => n.Type)
+                                .Analyzer(_analyzerName)
+                            )
+                        )
+                    )
+                );
+
                 return Ok(response.IsValid);
             }
 
@@ -42,8 +71,8 @@ public class HeadPhoneController : ControllerBase
         }
     }
 
-    [HttpGet]
-    public async Task<IActionResult> GetHeadPhones()
+    [HttpPost("filter")]
+    public async Task<IActionResult> GetHeadPhones([FromQuery] int start, [FromQuery] int limit, HeadPhoneItem model)
     {
         try
         {
@@ -62,9 +91,19 @@ public class HeadPhoneController : ControllerBase
             //    });
             //}
 
-
-            //ISearchResponse<HeadPhoneItem> response = await _elasticClient.SearchAsync<HeadPhoneItem>(x => x.Index(_indexName));
-            ISearchResponse<HeadPhoneItem> response = await _elasticClient.SearchAsync<HeadPhoneItem>(x => x.Index(_indexName).From(0).Size(100).Query(q => q.Match(m => m.Field(f => f.Title).Query("Aroma"))));
+            ISearchResponse<HeadPhoneItem> response = await _elasticClient.SearchAsync<HeadPhoneItem>(x => x
+                .Index(_indexName)
+                .From(start)
+                .Size(limit)
+                .Query(q => q
+                    .Bool(b => b
+                        .Must(
+                            m => m.Wildcard(t => t.Title, model.Title),
+                            m => m.Wildcard(t => t.Color, model.Color)
+                        )
+                    )
+                )
+            );
 
             if (response.IsValid)
             {
